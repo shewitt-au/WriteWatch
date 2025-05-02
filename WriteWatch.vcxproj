@@ -128,19 +128,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="framework.h" />
-    <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
-    <ClInclude Include="WriteWatch.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WriteWatch.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="WriteWatch.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="small.ico" />
-    <Image Include="WriteWatch.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
