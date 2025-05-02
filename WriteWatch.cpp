@@ -2,6 +2,7 @@
 //
 
 #include "framework.h"
+#include <detours.h>
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -10,6 +11,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
+
+    DetourTransactionBegin();
+    DetourTransactionCommit();
+
+    LPVOID p = VirtualAlloc(
+                    NULL,           // LPVOID lpAddress
+                    65536,          // SIZE_T dwSize
+                    MEM_COMMIT,     // DWORD  flAllocationType
+                    PAGE_READONLY   // DWORD flProtect
+                    );
+
+    *(DWORDLONG*)p = 5;
 
     return 0;
 }
