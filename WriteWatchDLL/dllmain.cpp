@@ -17,10 +17,10 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         InitThread();
         break;
     case DLL_THREAD_DETACH:
-        DeinitThread();
+        UninitThread();
         break;
     case DLL_PROCESS_DETACH:
-        DeinitDLL();
+        UninitDLL();
         break;
     }
     return TRUE;

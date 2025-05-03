@@ -6,8 +6,10 @@
 #include <shared_mutex>
 #include <vector>
 #include <algorithm>
+#include <detours.h>
 
 DWORD g_TlsSlot;
+const SIZE_T TrampolineSize = 4096;
 
 class MemoryRegion
 {
@@ -99,7 +101,7 @@ void InitDLL()
     g_TlsSlot = TlsAlloc();
 }
 
-void DeinitDLL()
+void UninitDLL()
 {
     TlsFree(g_TlsSlot);
 }
@@ -108,7 +110,7 @@ void InitThread()
 {
     PVOID pTrampoline = VirtualAlloc(
         NULL,                   // LPVOID lpAddress
-        65536,                  // SIZE_T dwSize
+        4096,                   // SIZE_T dwSize
         MEM_COMMIT,             // DWORD  flAllocationType
         PAGE_EXECUTE_READWRITE  // DWORD flProtect
     );
@@ -116,7 +118,7 @@ void InitThread()
     TlsSetValue(g_TlsSlot, pTrampoline);
 }
 
-void DeinitThread()
+void UninitThread()
 {
     PVOID pTrampoline = TlsGetValue(g_TlsSlot);
     if (pTrampoline)
@@ -132,4 +134,35 @@ void DeinitThread()
 EXPORTED_FN PVOID __stdcall AllocWatched(SIZE_T size)
 {
     return g_memory.Alloc(size);
+}
+
+EXPORTED_FN void __stdcall FreeWatched(PVOID pMem)
+{
+    g_memory.Free(pMem);
+}
+
+LONG WINAPI
+VectoredHandler(struct _EXCEPTION_POINTERS* ep)
+{
+    EXCEPTION_RECORD& er = *(ep->ExceptionRecord);
+    if (er.ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
+        return EXCEPTION_CONTINUE_SEARCH;
+    if (er.ExceptionInformation[0] != 1)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    // Access violation on a write
+
+    PVOID pTrampoline = TlsGetValue(g_TlsSlot);
+    LPVOID pPool = (PVOID)((char*)pTrampoline + TrampolineSize-1);
+    LPVOID pNext = DetourCopyInstruction(
+        pTrampoline,         // _In_opt_ PVOID pDst
+        &pPool,              // _Inout_opt_ PVOID * ppDstPool
+        er.ExceptionAddress, // _In_ PVOID pSrc
+        NULL,                // _Out_opt_ PVOID * ppTarget
+        NULL                 // _Out_opt_ LONG * plExtra
+    );
+
+    ep->ContextRecord->Rip = (DWORD64)pNext;
+
+    return EXCEPTION_CONTINUE_EXECUTION;
 }

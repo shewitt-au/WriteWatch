@@ -11,8 +11,9 @@
 #ifdef WDL_EXPORTS
 void InitDLL();
 void InitThread();
-void DeinitThread();
-void DeinitDLL();
+void UninitThread();
+void UninitDLL();
 #endif
 
 EXPORTED_FN PVOID __stdcall AllocWatched(SIZE_T size);
+EXPORTED_FN void __stdcall FreeWatched(PVOID pMem);

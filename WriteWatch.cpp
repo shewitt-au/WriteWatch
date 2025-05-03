@@ -41,6 +41,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     PVOID pt = AllocWatched(10);
+    FreeWatched(pt);
 
     g_pTrampoline = VirtualAlloc(
                         NULL,                   // LPVOID lpAddress
