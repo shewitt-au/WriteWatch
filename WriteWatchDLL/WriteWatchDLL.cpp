@@ -5,6 +5,7 @@
 #include "WriteWatchDLL.h"
 #include <shared_mutex>
 #include <vector>
+#include <algorithm>
 
 DWORD g_TlsSlot;
 
@@ -17,11 +18,16 @@ public:
         m_end = (DWORD_PTR)((DWORD_PTR)pMem +size-1);
     }
 
-    bool Check(PVOID pMem, SIZE_T size)
+    bool Check(PVOID pMem, SIZE_T size) const
     {
         DWORD_PTR s = (DWORD_PTR)pMem;
         DWORD_PTR e = (DWORD_PTR)((DWORD_PTR)pMem+size-1);
         return s>=m_start && e<=m_end;
+    }
+
+    bool CheckStart(PVOID pMem) const
+    {
+        return (DWORD_PTR)pMem == m_start;
     }
 
 private:
@@ -66,7 +72,7 @@ PVOID MemoryAllocator::Alloc(SIZE_T size)
         m_regions.push_back(MemoryRegion(p, mbi.RegionSize));
     }
 
-    return 0;
+    return p;
 }
 
 void MemoryAllocator::Free(PVOID pMem)
@@ -75,9 +81,15 @@ void MemoryAllocator::Free(PVOID pMem)
         pMem,       // LPVOID lpAddress
         0,          // SIZE_T dwSize
         MEM_RELEASE // DWORD  dwFreeType
-        );
+    );
 
     WriteLock w_lock(g_AllocLock);
+    auto it = std::find_if(
+                    m_regions.begin(), m_regions.end(),
+                    [pMem](const MemoryRegion& r) { return r.CheckStart(pMem); }
+                    );
+    if (it != m_regions.end())
+        m_regions.erase(it);
 }
 
 MemoryAllocator g_memory;
@@ -102,9 +114,6 @@ void InitThread()
     );
 
     TlsSetValue(g_TlsSlot, pTrampoline);
-
-    DWORD t = GetCurrentThreadId();
-    DebugBreak();
 }
 
 void DeinitThread()
@@ -120,12 +129,7 @@ void DeinitThread()
     }
 }
 
-EXPORTED_FN void __stdcall Test()
-{
-    MessageBoxA(NULL, "In DLL!", "WriteWatchDLL", MB_OK);
-}
-
 EXPORTED_FN PVOID __stdcall AllocWatched(SIZE_T size)
 {
-    return 0;
+    return g_memory.Alloc(size);
 }
