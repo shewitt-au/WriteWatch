@@ -4,9 +4,6 @@
 #include "framework.h"
 #include <detours.h>
 
-VOID(NTAPI* Real_KiUserExceptionDispatcher)(IN PEXCEPTION_RECORD ExceptionRecord,
-    IN PCONTEXT ContextFrame) = NULL;
-
 char buffer[1024];
 
 LONG WINAPI
@@ -36,14 +33,6 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     return EXCEPTION_CONTINUE_EXECUTION;
 }
 
-/*static VOID NTAPI
-Detour_KiUserExceptionDispatcher(PEXCEPTION_RECORD pExceptRec,
-    CONTEXT* pContext)
-{
-    MessageBoxA(NULL, "Fuck off!", "!", MB_OK);
-    Real_KiUserExceptionDispatcher(pExceptRec, pContext);
-}*/
-
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
     _In_ LPWSTR    lpCmdLine,
@@ -51,16 +40,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
-
-    /*Real_KiUserExceptionDispatcher =
-        (VOID(NTAPI*)(IN PEXCEPTION_RECORD, IN PCONTEXT))
-        DetourFindFunction("ntdll.dll", "KiUserExceptionDispatcher");
-
-    DetourTransactionBegin();
-    DetourUpdateThread(GetCurrentThread());
-    DetourAttach(&(PVOID&)Real_KiUserExceptionDispatcher,
-        Detour_KiUserExceptionDispatcher);
-    DetourTransactionCommit();*/
 
     LPVOID p = VirtualAlloc(
                     NULL,           // LPVOID lpAddress
