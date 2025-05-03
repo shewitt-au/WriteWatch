@@ -4,7 +4,7 @@
 #include "framework.h"
 #include <detours.h>
 
-char buffer[1024];
+PVOID g_pTrampoline = NULL;
 
 LONG WINAPI
 VectoredHandler(struct _EXCEPTION_POINTERS* ep)
@@ -17,9 +17,9 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
 
     // Access violation on a write
 
-    PVOID pPool = (PVOID)(buffer + sizeof(buffer) - 1);
+    PVOID pPool = (PVOID)((char*)g_pTrampoline+sizeof(g_pTrampoline)-1);
     PVOID pNext = DetourCopyInstruction(
-                    buffer,              // _In_opt_ PVOID pDst
+                    g_pTrampoline,       // _In_opt_ PVOID pDst
                     &pPool,              // _Inout_opt_ PVOID * ppDstPool
                     er.ExceptionAddress, // _In_ PVOID pSrc
                     NULL,                // _Out_opt_ PVOID * ppTarget
@@ -27,8 +27,6 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
                     );
 
     ep->ContextRecord->Rip = (DWORD64)pNext;
-
-    //MessageBoxA(NULL, "Write", NULL, MB_OK);
 
     return EXCEPTION_CONTINUE_EXECUTION;
 }
@@ -40,6 +38,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
+
+    g_pTrampoline = VirtualAlloc(
+                        NULL,                   // LPVOID lpAddress
+                        65536,                  // SIZE_T dwSize
+                        MEM_COMMIT,             // DWORD  flAllocationType
+                        PAGE_EXECUTE_READWRITE  // DWORD flProtect
+                        );
 
     LPVOID p = VirtualAlloc(
                     NULL,           // LPVOID lpAddress
