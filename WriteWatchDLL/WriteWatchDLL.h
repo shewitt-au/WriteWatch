@@ -16,3 +16,4 @@ void DeinitDLL();
 #endif
 
 EXPORTED_FN void __stdcall Test();
+EXPORTED_FN PVOID __stdcall AllocWatched(SIZE_T size);

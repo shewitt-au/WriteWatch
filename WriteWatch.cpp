@@ -5,7 +5,7 @@
 #include <detours.h>
 #include "WriteWatchDLL/WriteWatchDLL.h"
 
-PVOID g_pTrampoline = NULL;
+LPVOID g_pTrampoline = NULL;
 
 LONG WINAPI
 VectoredHandler(struct _EXCEPTION_POINTERS* ep)
@@ -18,8 +18,8 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
 
     // Access violation on a write
 
-    PVOID pPool = (PVOID)((char*)g_pTrampoline+sizeof(g_pTrampoline)-1);
-    PVOID pNext = DetourCopyInstruction(
+    LPVOID pPool = (PVOID)((char*)g_pTrampoline+sizeof(g_pTrampoline)-1);
+    LPVOID pNext = DetourCopyInstruction(
                     g_pTrampoline,       // _In_opt_ PVOID pDst
                     &pPool,              // _Inout_opt_ PVOID * ppDstPool
                     er.ExceptionAddress, // _In_ PVOID pSrc

@@ -3,8 +3,84 @@
 
 #include "pch.h"
 #include "WriteWatchDLL.h"
+#include <shared_mutex>
+#include <vector>
 
 DWORD g_TlsSlot;
+
+class MemoryRegion
+{
+public:
+    MemoryRegion(PVOID pMem, SIZE_T size)
+    {
+        m_start = (DWORD_PTR)pMem;
+        m_end = (DWORD_PTR)((DWORD_PTR)pMem +size-1);
+    }
+
+    bool Check(PVOID pMem, SIZE_T size)
+    {
+        DWORD_PTR s = (DWORD_PTR)pMem;
+        DWORD_PTR e = (DWORD_PTR)((DWORD_PTR)pMem+size-1);
+        return s>=m_start && e<=m_end;
+    }
+
+private:
+    DWORD_PTR m_start;
+    DWORD_PTR m_end;
+};
+
+class MemoryAllocator
+{
+public:
+    MemoryAllocator()  {}
+    ~MemoryAllocator() {}
+
+    PVOID Alloc(SIZE_T size);
+    void Free(PVOID pMem);
+
+private:
+    typedef std::shared_mutex Lock;
+    typedef std::unique_lock<Lock>  WriteLock;
+    typedef std::shared_lock<Lock>  ReadLock;
+
+    static Lock g_AllocLock;
+    std::vector<MemoryRegion> m_regions;
+};
+
+MemoryAllocator::Lock MemoryAllocator::g_AllocLock;
+
+PVOID MemoryAllocator::Alloc(SIZE_T size)
+{
+    PVOID p = VirtualAlloc(
+        NULL,           // LPVOID lpAddress
+        size,           // SIZE_T dwSize
+        MEM_COMMIT,     // DWORD  flAllocationType
+        PAGE_READONLY   // DWORD flProtect
+        );
+    MEMORY_BASIC_INFORMATION mbi;
+    VirtualQuery(p, &mbi, sizeof(MEMORY_BASIC_INFORMATION));
+
+    if (p)
+    {
+        WriteLock w_lock(g_AllocLock);
+        m_regions.push_back(MemoryRegion(p, mbi.RegionSize));
+    }
+
+    return 0;
+}
+
+void MemoryAllocator::Free(PVOID pMem)
+{
+    VirtualFree(
+        pMem,       // LPVOID lpAddress
+        0,          // SIZE_T dwSize
+        MEM_RELEASE // DWORD  dwFreeType
+        );
+
+    WriteLock w_lock(g_AllocLock);
+}
+
+MemoryAllocator g_memory;
 
 void InitDLL()
 {
@@ -26,6 +102,9 @@ void InitThread()
     );
 
     TlsSetValue(g_TlsSlot, pTrampoline);
+
+    DWORD t = GetCurrentThreadId();
+    DebugBreak();
 }
 
 void DeinitThread()
@@ -34,8 +113,8 @@ void DeinitThread()
     if (pTrampoline)
     {
         VirtualFree(
-            pTrampoline,    // LPVOID lpAddress,
-            0,              // SIZE_T dwSize,
+            pTrampoline,    // LPVOID lpAddress
+            0,              // SIZE_T dwSize
             MEM_RELEASE     // DWORD  dwFreeType
         );
     }
@@ -44,4 +123,9 @@ void DeinitThread()
 EXPORTED_FN void __stdcall Test()
 {
     MessageBoxA(NULL, "In DLL!", "WriteWatchDLL", MB_OK);
+}
+
+EXPORTED_FN PVOID __stdcall AllocWatched(SIZE_T size)
+{
+    return 0;
 }
