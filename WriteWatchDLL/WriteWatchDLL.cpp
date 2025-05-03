@@ -8,6 +8,9 @@
 #include <algorithm>
 #include <detours.h>
 
+LONG WINAPI VectoredHandler(struct _EXCEPTION_POINTERS* ep);
+
+PVOID g_vxh;
 DWORD g_TlsSlot;
 const SIZE_T TrampolineSize = 4096;
 
@@ -99,11 +102,14 @@ MemoryAllocator g_memory;
 void InitDLL()
 {
     g_TlsSlot = TlsAlloc();
+    g_vxh = AddVectoredExceptionHandler(0, VectoredHandler);
 }
 
 void UninitDLL()
 {
     TlsFree(g_TlsSlot);
+    if (g_vxh)
+        RemoveVectoredExceptionHandler(g_vxh);
 }
 
 void InitThread()
