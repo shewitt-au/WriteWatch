@@ -181,10 +181,11 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
 
     // Is it one of our's?
     if (!g_memory.Check(
-            (PVOID)(ep->ExceptionRecord->ExceptionInformation[1]),
-        sizeof(DWORD_PTR))
-    )
+        (PVOID)(ep->ExceptionRecord->ExceptionInformation[1]),
+        sizeof(DWORD_PTR)))
+    {
         return EXCEPTION_CONTINUE_SEARCH;
+    }
 
     // Yes!
 
