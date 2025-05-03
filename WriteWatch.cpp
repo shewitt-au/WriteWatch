@@ -20,6 +20,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     *(DWORDLONG*)p = 2;
     *(DWORDLONG*)p = 3;
 
+    *(DWORDLONG*)0 = 4;
+
     FreeWatched(p);
 
     return 0;

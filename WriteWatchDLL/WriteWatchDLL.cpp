@@ -49,6 +49,8 @@ public:
     PVOID Alloc(SIZE_T size);
     void Free(PVOID pMem);
 
+    bool Check(PVOID pMem, SIZE_T sz);
+
 private:
     typedef std::shared_mutex Lock;
     typedef std::unique_lock<Lock>  WriteLock;
@@ -95,6 +97,16 @@ void MemoryAllocator::Free(PVOID pMem)
                     );
     if (it != m_regions.end())
         m_regions.erase(it);
+}
+
+bool MemoryAllocator::Check(PVOID pMem, SIZE_T sz)
+{
+    ReadLock w_lock(g_AllocLock);
+    auto it = std::find_if(
+        m_regions.begin(), m_regions.end(),
+        [pMem](const MemoryRegion& r) { return r.Check(pMem, sizeof(pMem)); }
+    );
+    return it != m_regions.end();
 }
 
 MemoryAllocator g_memory;
@@ -165,6 +177,16 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
         return EXCEPTION_CONTINUE_SEARCH;
 
     // Access violation on a write
+    //
+
+    // Is it one of our's?
+    if (!g_memory.Check(
+            (PVOID)(ep->ExceptionRecord->ExceptionInformation[1]),
+        sizeof(DWORD_PTR))
+    )
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    // Yes!
 
     PVOID pTrampoline = TlsGetValue(g_TlsSlot);
     LPVOID pPool = (PVOID)((char*)pTrampoline + TrampolineSize-1);
