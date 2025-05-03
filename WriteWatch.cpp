@@ -29,9 +29,11 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
                     NULL                 // _Out_opt_ LONG * plExtra
                     );
 
-    MessageBoxA(NULL, "Write", NULL, MB_OK);
+    ep->ContextRecord->Rip = (DWORD64)pNext;
 
-    return EXCEPTION_CONTINUE_SEARCH;
+    //MessageBoxA(NULL, "Write", NULL, MB_OK);
+
+    return EXCEPTION_CONTINUE_EXECUTION;
 }
 
 /*static VOID NTAPI
@@ -69,7 +71,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     PVOID vxh = AddVectoredExceptionHandler(0, VectoredHandler);
 
-    *(DWORDLONG*)p = 5;
+    DWORDLONG v = *(DWORDLONG*)p;
+
+    *(DWORDLONG*)p = 1;
+    *(DWORDLONG*)p = 2;
+    *(DWORDLONG*)p = 3;
 
     if (vxh)
         RemoveVectoredExceptionHandler(vxh);
