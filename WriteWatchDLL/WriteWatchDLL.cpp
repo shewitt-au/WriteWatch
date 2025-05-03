@@ -114,14 +114,6 @@ void UninitDLL()
 
 void InitThread()
 {
-    PVOID pTrampoline = VirtualAlloc(
-        NULL,                   // LPVOID lpAddress
-        4096,                   // SIZE_T dwSize
-        MEM_COMMIT,             // DWORD  flAllocationType
-        PAGE_EXECUTE_READWRITE  // DWORD flProtect
-    );
-
-    TlsSetValue(g_TlsSlot, pTrampoline);
 }
 
 void UninitThread()
@@ -139,6 +131,22 @@ void UninitThread()
 
 EXPORTED_FN PVOID __stdcall AllocWatched(SIZE_T size)
 {
+    // Allocate the trampoline on demand.
+    // The DLL_THREAD_DETACH notification is only called for
+    // threads loaded after we are, not pre-existing ones.
+    PVOID pTrampoline = TlsGetValue(g_TlsSlot);
+    if (!pTrampoline)
+    {
+        PVOID pTrampoline = VirtualAlloc(
+            NULL,                   // LPVOID lpAddress
+            4096,                   // SIZE_T dwSize
+            MEM_COMMIT,             // DWORD  flAllocationType
+            PAGE_EXECUTE_READWRITE  // DWORD flProtect
+        );
+
+        TlsSetValue(g_TlsSlot, pTrampoline);
+    }
+
     return g_memory.Alloc(size);
 }
 
