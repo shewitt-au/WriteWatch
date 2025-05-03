@@ -167,7 +167,7 @@ EXPORTED_FN void __stdcall FreeWatched(PVOID pMem)
     g_memory.Free(pMem);
 }
 
-LONG WINAPI
+static LONG WINAPI
 VectoredHandler(struct _EXCEPTION_POINTERS* ep)
 {
     EXCEPTION_RECORD& er = *(ep->ExceptionRecord);
