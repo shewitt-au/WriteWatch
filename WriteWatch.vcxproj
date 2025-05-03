@@ -117,7 +117,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ImportLibrary>detours.lib</ImportLibrary>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);detours.lib</AdditionalDependencies>
+      <AdditionalDependencies>WriteWatchDLL.lib;$(CoreLibraryDependencies);%(AdditionalDependencies);detours.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -135,7 +135,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ImportLibrary>detours.lib</ImportLibrary>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);detours.lib</AdditionalDependencies>
+      <AdditionalDependencies>WriteWatchDLL.lib;$(CoreLibraryDependencies);%(AdditionalDependencies);detours.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

@@ -3,6 +3,7 @@
 
 #include "framework.h"
 #include <detours.h>
+#include "WriteWatchDLL/WriteWatchDLL.h"
 
 PVOID g_pTrampoline = NULL;
 
@@ -38,6 +39,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
+
+    Test();
 
     g_pTrampoline = VirtualAlloc(
                         NULL,                   // LPVOID lpAddress
