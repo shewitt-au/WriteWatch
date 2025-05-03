@@ -1,4 +1,4 @@
-// WriteWatch.cpp : Defines the entry point for the application.
+// WriteWatch.cpp
 //
 
 #include "framework.h"
