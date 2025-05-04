@@ -228,6 +228,8 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     // Yes
     //
 
+    PVOID pTrampoline = TlsGetValue(g_TlsSlot);
+
     MEMORY_BASIC_INFORMATION mbi;
     SIZE_T qr = VirtualQuery(
                     (LPCVOID)((UINT_PTR)pAccess&g_PageMask),
@@ -245,10 +247,22 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
                 MB_OK | MB_ICONERROR
             );
         }
-        DebugBreak();
+        
+        CodeGen g((uint8_t*)pTrampoline);
+        // Add a vector to jump back to user code.
+        g.value((DWORD64)0);
+        auto resume = g.get_prev();
+        *(DWORD64*)resume = (DWORD64)(er.ExceptionAddress);
+        auto pEntryPoint = g.get_next();
+        g.breakpoint();
+        // jmp to resume user code.
+        g.jmp_indirect((ULONG_PTR)resume);
+  
+        ep->ContextRecord->Rip = (DWORD64)pEntryPoint;
+
+        return EXCEPTION_CONTINUE_EXECUTION;
     }
         
-    PVOID pTrampoline = TlsGetValue(g_TlsSlot);
     PVOID pPool = (PVOID)((char*)pTrampoline + TrampolineSize - 1);
 
     CodeGen g((uint8_t*)pTrampoline);

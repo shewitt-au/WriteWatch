@@ -30,6 +30,7 @@ public:
 	inline void param3(DWORD param);
 	inline void param4(DWORD64 param);
 	inline void jmp_indirect(ULONG_PTR pLoc);
+	inline void breakpoint();
 
 private:
 	uint8_t* m_ip;
@@ -145,4 +146,9 @@ void CodeGen::jmp_indirect(ULONG_PTR pLoc)
 	byte(0xff);
 	byte(0x25);
 	value(rel);
+}
+
+void CodeGen::breakpoint()
+{
+	byte(0xcc);
 }
