@@ -225,6 +225,29 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
+    // Yes
+    //
+
+    MEMORY_BASIC_INFORMATION mbi;
+    SIZE_T qr = VirtualQuery(
+                    (LPCVOID)((UINT_PTR)pAccess&g_PageMask),
+                    &mbi,
+                    sizeof(mbi)
+                    );
+    if (qr && !(mbi.Protect&PAGE_READWRITE))
+    {
+        if (!IsDebuggerPresent())
+        {
+            MessageBoxA(
+                NULL,
+                "WriteWatch detected an invalid address!",
+                "WriteWatch",
+                MB_OK | MB_ICONERROR
+            );
+        }
+        DebugBreak();
+    }
+        
     PVOID pTrampoline = TlsGetValue(g_TlsSlot);
     PVOID pPool = (PVOID)((char*)pTrampoline + TrampolineSize - 1);
 
