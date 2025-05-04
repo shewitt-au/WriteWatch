@@ -13,6 +13,8 @@ LONG WINAPI VectoredHandler(struct _EXCEPTION_POINTERS* ep);
 
 PVOID g_vxh;
 DWORD g_TlsSlot;
+std::vector<PVOID> g_Trampolines;
+CRITICAL_SECTION g_TrampLock;
 const SIZE_T TrampolineSize = 4096;
 
 class MemoryRegion
@@ -114,15 +116,31 @@ MemoryAllocator g_memory;
 
 void InitDLL()
 {
+    InitializeCriticalSection(&g_TrampLock);
     g_TlsSlot = TlsAlloc();
     g_vxh = AddVectoredExceptionHandler(0, VectoredHandler);
 }
 
 void UninitDLL()
 {
-    TlsFree(g_TlsSlot);
     if (g_vxh)
         RemoveVectoredExceptionHandler(g_vxh);
+    TlsFree(g_TlsSlot);
+
+    EnterCriticalSection(&g_TrampLock);
+    for (auto pTramp : g_Trampolines)
+    {
+        g_Trampolines.push_back(pTramp);
+
+        VirtualFree(
+            pTramp,         // LPVOID lpAddress
+            0,              // SIZE_T dwSize
+            MEM_RELEASE     // DWORD  dwFreeType
+        );
+    }
+    LeaveCriticalSection(&g_TrampLock);
+
+    DeleteCriticalSection(&g_TrampLock);
 }
 
 void InitThread()
@@ -134,6 +152,15 @@ void UninitThread()
     PVOID pTrampoline = TlsGetValue(g_TlsSlot);
     if (pTrampoline)
     {
+        EnterCriticalSection(&g_TrampLock);
+        auto it = std::find(
+            g_Trampolines.begin(), g_Trampolines.end(),
+            pTrampoline
+        );
+        if (it != g_Trampolines.end())
+            g_Trampolines.erase(it);
+        LeaveCriticalSection(&g_TrampLock);
+
         VirtualFree(
             pTrampoline,    // LPVOID lpAddress
             0,              // SIZE_T dwSize
@@ -156,6 +183,10 @@ EXPORTED_FN PVOID __stdcall AllocWatched(SIZE_T size)
             MEM_COMMIT,             // DWORD  flAllocationType
             PAGE_EXECUTE_READWRITE  // DWORD flProtect
         );
+
+        EnterCriticalSection(&g_TrampLock);
+        g_Trampolines.push_back(pTrampoline);
+        LeaveCriticalSection(&g_TrampLock);
 
         TlsSetValue(g_TlsSlot, pTrampoline);
     }
