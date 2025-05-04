@@ -225,10 +225,18 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     PVOID pPool = (PVOID)((char*)pTrampoline + TrampolineSize - 1);
 
     CodeGen g((uint8_t*)pTrampoline);
+
+    // Add vector to VirtualProtect
     auto pp = g.pointer((ULONG_PTR)VirtualProtect);
     auto pEntryPoint = g.get_next();
+
+    // Save volatile regs
     g.push_volatile_regs();
 
+    // Make the page writable
+    g.call_indirect(pp);
+
+    // Copy the faulting instruction.
     auto pCC = g.get_next();
     PVOID pNext = DetourCopyInstruction(
         pCC,                 // _In_opt_ PVOID pDst
@@ -240,8 +248,11 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     // pNext is in the source. Translate to trampoline.
     PVOID pTn = (PVOID)((DWORD_PTR)pCC+(DWORD_PTR)pNext-(DWORD_PTR)(er.ExceptionAddress));
 
+    // Make the page read-only again
     g.set_next((uint8_t*)pTn);
     g.call_indirect(pp);
+
+    // Restore volatile regs
     g.pop_volatile_regs();
     
     ep->ContextRecord->Rip = (DWORD64)pEntryPoint;

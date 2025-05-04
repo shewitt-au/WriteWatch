@@ -23,7 +23,7 @@ public:
 	void push_volatile_regs();
 	void pop_volatile_regs();
 	inline ULONG_PTR pointer(ULONG_PTR pFn);
-	inline void call_indirect(ULONG_PTR pFn);
+	inline void call_indirect(ULONG_PTR pLoc);
 	
 
 private:
@@ -79,10 +79,11 @@ ULONG_PTR CodeGen::pointer(ULONG_PTR pFn)
 	return (ULONG_PTR)old;
 }
 
-void CodeGen::call_indirect(ULONG_PTR pFn)
+void CodeGen::call_indirect(ULONG_PTR pLoc)
 {
 	// call qword[32rel]; FF 15
-	WORD rel = (WORD)((ULONG_PTR)pFn-(ULONG_PTR)(m_ip+6));
+	DWORD rel = (DWORD)((ULONG_PTR)pLoc-(ULONG_PTR)(m_ip+6));
+	int sz = sizeof(rel);
 	byte(0xff);
 	byte(0x15);
 	value(rel);
