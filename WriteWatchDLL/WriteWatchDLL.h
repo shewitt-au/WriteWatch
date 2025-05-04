@@ -15,5 +15,13 @@ void UninitThread();
 void UninitDLL();
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 EXPORTED_FN PVOID __stdcall AllocWatched(SIZE_T size);
 EXPORTED_FN void __stdcall FreeWatched(PVOID pMem);
+
+#ifdef __cplusplus
+} // 
+#endif // extern "C"

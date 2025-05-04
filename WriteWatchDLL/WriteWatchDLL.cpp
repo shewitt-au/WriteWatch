@@ -236,7 +236,7 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
                     );
     if (qr && !(mbi.Protect&PAGE_READWRITE))
     {
-        if (!IsDebuggerPresent())
+        //if (!IsDebuggerPresent())
         {
             MessageBoxA(
                 NULL,
