@@ -13,6 +13,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     PVOID p = AllocWatched(10);
+    //PVOID p = (PVOID)(new char[1000]);
 
     DWORDLONG v = *(DWORDLONG*)p;
 
@@ -22,7 +23,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     *(DWORDLONG*)0 = 4;
 
-    FreeWatched(p);
+    MessageBoxA(NULL, "Here", NULL, MB_OK);
 
     return 0;
 }

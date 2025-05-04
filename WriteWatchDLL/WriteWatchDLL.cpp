@@ -11,6 +11,8 @@
 
 LONG WINAPI VectoredHandler(struct _EXCEPTION_POINTERS* ep);
 
+UINT_PTR g_PageMask;
+DWORD g_PageSize;
 PVOID g_vxh;
 DWORD g_TlsSlot;
 std::vector<PVOID> g_Trampolines;
@@ -116,6 +118,11 @@ MemoryAllocator g_memory;
 
 void InitDLL()
 {
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    g_PageSize = si.dwPageSize;
+    g_PageMask = ~(((UINT_PTR)si.dwPageSize)-1);
+  
     InitializeCriticalSection(&g_TrampLock);
     g_TlsSlot = TlsAlloc();
     g_vxh = AddVectoredExceptionHandler(0, VectoredHandler);
@@ -212,29 +219,40 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     //
 
     // Is it one of our's?
-    if (!g_memory.Check(
-        (PVOID)(ep->ExceptionRecord->ExceptionInformation[1]),
-        sizeof(DWORD_PTR)))
+    PVOID pAccess = (PVOID)ep->ExceptionRecord->ExceptionInformation[1];
+    if (!g_memory.Check(pAccess, sizeof(DWORD_PTR)))
     {
         return EXCEPTION_CONTINUE_SEARCH;
     }
-
-    // Yes!
 
     PVOID pTrampoline = TlsGetValue(g_TlsSlot);
     PVOID pPool = (PVOID)((char*)pTrampoline + TrampolineSize - 1);
 
     CodeGen g((uint8_t*)pTrampoline);
 
+    // Add a vector to jump back to user code.
+    g.value((DWORD64)0);
+    auto resume = g.get_prev();;
     // Add vector to VirtualProtect
     auto pp = g.pointer((ULONG_PTR)VirtualProtect);
+    // Add place for lpflOldProtect from VirtualProtect
+    g.value((DWORD)0);
+    auto old = g.get_prev();
+
     auto pEntryPoint = g.get_next();
 
     // Save volatile regs
     g.push_volatile_regs();
 
     // Make the page writable
+    g.param1((UINT_PTR)pAccess & g_PageMask);
+    g.param2(g_PageSize);
+    g.param3(PAGE_READWRITE);
+    g.param4((DWORD64)old);
     g.call_indirect(pp);
+
+    // Restore volatile regs
+    g.pop_volatile_regs();
 
     // Copy the faulting instruction.
     auto pCC = g.get_next();
@@ -247,13 +265,26 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
         );
     // pNext is in the source. Translate to trampoline.
     PVOID pTn = (PVOID)((DWORD_PTR)pCC+(DWORD_PTR)pNext-(DWORD_PTR)(er.ExceptionAddress));
+    g.set_next((uint8_t*)pTn);
+
+    // Save volatile regs
+    g.push_volatile_regs();
+
+    // Populate return to user code vector.
+    *(DWORD64*)resume = (DWORD64)pNext;
 
     // Make the page read-only again
-    g.set_next((uint8_t*)pTn);
+    g.param1((UINT_PTR)pAccess & g_PageMask);
+    g.param2(g_PageSize);
+    g.param3(PAGE_READONLY);
+    g.param4((DWORD64)old);
     g.call_indirect(pp);
 
     // Restore volatile regs
     g.pop_volatile_regs();
+
+    // jmp to resume user code.
+    g.jmp_indirect((ULONG_PTR)resume);
     
     ep->ContextRecord->Rip = (DWORD64)pEntryPoint;
 
