@@ -7,6 +7,7 @@
 #include <vector>
 #include <algorithm>
 #include <detours.h>
+#include "CodeGen.h"
 
 LONG WINAPI VectoredHandler(struct _EXCEPTION_POINTERS* ep);
 
@@ -190,16 +191,29 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     // Yes!
 
     PVOID pTrampoline = TlsGetValue(g_TlsSlot);
-    LPVOID pPool = (PVOID)((char*)pTrampoline + TrampolineSize-1);
-    LPVOID pNext = DetourCopyInstruction(
-        pTrampoline,         // _In_opt_ PVOID pDst
+    PVOID pPool = (PVOID)((char*)pTrampoline + TrampolineSize - 1);
+
+    CodeGen g((uint8_t*)pTrampoline);
+    auto pp = g.pointer((ULONG_PTR)VirtualProtect);
+    auto pEntryPoint = g.get_next();
+    g.push_volatile_regs();
+
+    auto pCC = g.get_next();
+    PVOID pNext = DetourCopyInstruction(
+        pCC,                 // _In_opt_ PVOID pDst
         &pPool,              // _Inout_opt_ PVOID * ppDstPool
         er.ExceptionAddress, // _In_ PVOID pSrc
         NULL,                // _Out_opt_ PVOID * ppTarget
         NULL                 // _Out_opt_ LONG * plExtra
-    );
+        );
+    // pNext is in the source. Translate to trampoline.
+    PVOID pTn = (PVOID)((DWORD_PTR)pCC+(DWORD_PTR)pNext-(DWORD_PTR)(er.ExceptionAddress));
 
-    ep->ContextRecord->Rip = (DWORD64)pNext;
+    g.set_next((uint8_t*)pTn);
+    g.call_indirect(pp);
+    g.pop_volatile_regs();
+    
+    ep->ContextRecord->Rip = (DWORD64)pEntryPoint;
 
     return EXCEPTION_CONTINUE_EXECUTION;
 }

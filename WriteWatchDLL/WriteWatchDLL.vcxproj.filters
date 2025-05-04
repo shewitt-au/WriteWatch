@@ -24,6 +24,9 @@
     <ClInclude Include="WriteWatchDLL.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="CodeGen.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -33,6 +36,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="WriteWatchDLL.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CodeGen.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
