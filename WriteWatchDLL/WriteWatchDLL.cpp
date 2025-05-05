@@ -315,6 +315,22 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     //  We need to check pAccess after we've re-ran the faulting code and then check the
     // value that was written. It's the only way I know of to find what was written.
     // Once we know what was written we can check if it's valid.
+    // The call we need (work in progress).
+    /*
+    MEMORY_BASIC_INFORMATION mbi;
+    SIZE_T st = VirtualQuery(*pAccess, &mbi, sizeof(mbi))
+                  [in, optional] LPCVOID                   lpAddress,
+                  [out]          PMEMORY_BASIC_INFORMATION lpBuffer,
+                  [in]           SIZE_T                    dwLength
+                  );
+    if (mbi.State!=MEM_COMMIT ||
+        mbi.Protect&PAGE_NOACCESS ||
+        !mbi.Protect&(PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_READONLY|PAGE_READWRITE)
+    {
+        DebugBreak();
+    }
+    */
+
 
     // Save volatile regs
     g.push_volatile_regs();
