@@ -24,25 +24,25 @@ class MemoryRegion
 public:
     MemoryRegion(PVOID pMem, SIZE_T size)
     {
-        m_start = (DWORD_PTR)pMem;
-        m_end = (DWORD_PTR)((DWORD_PTR)pMem +size-1);
+        m_start = (ULONG_PTR)pMem;
+        m_end = (ULONG_PTR)(m_start +size-1);
     }
 
     bool Check(PVOID pMem, SIZE_T size) const
     {
-        DWORD_PTR s = (DWORD_PTR)pMem;
-        DWORD_PTR e = (DWORD_PTR)((DWORD_PTR)pMem+size-1);
+        ULONG_PTR s = (ULONG_PTR)pMem;
+        ULONG_PTR e = (ULONG_PTR)(s+size-1);
         return s>=m_start && e<=m_end;
     }
 
     bool CheckStart(PVOID pMem) const
     {
-        return (DWORD_PTR)pMem == m_start;
+        return (ULONG_PTR)pMem == m_start;
     }
 
 private:
-    DWORD_PTR m_start;
-    DWORD_PTR m_end;
+    ULONG_PTR m_start;
+    ULONG_PTR m_end;
 };
 
 class MemoryAllocator
@@ -74,6 +74,7 @@ PVOID MemoryAllocator::Alloc(SIZE_T size)
         size,           // SIZE_T dwSize
         MEM_COMMIT,     // DWORD  flAllocationType
         PAGE_READONLY   // DWORD flProtect
+        //PAGE_READWRITE
         );
     MEMORY_BASIC_INFORMATION mbi;
     VirtualQuery(p, &mbi, sizeof(MEMORY_BASIC_INFORMATION));
@@ -109,7 +110,7 @@ bool MemoryAllocator::Check(PVOID pMem, SIZE_T sz)
     ReadLock w_lock(g_AllocLock);
     auto it = std::find_if(
         m_regions.begin(), m_regions.end(),
-        [pMem](const MemoryRegion& r) { return r.Check(pMem, sizeof(pMem)); }
+        [pMem, sz](const MemoryRegion& r) { return r.Check(pMem, sz); }
     );
     return it != m_regions.end();
 }
@@ -230,23 +231,29 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
 
     PVOID pTrampoline = TlsGetValue(g_TlsSlot);
 
+    // BUG: This will not work!!!
+    // We need the value written, not the address written to.
     MEMORY_BASIC_INFORMATION mbi;
     SIZE_T qr = VirtualQuery(
                     (LPCVOID)((UINT_PTR)pAccess&g_PageMask),
                     &mbi,
                     sizeof(mbi)
                     );
-    if (qr && !(mbi.Protect&PAGE_READWRITE))
+   
+    if (qr && mbi.State!=MEM_COMMIT)
     {
-        //if (!IsDebuggerPresent())
+        /*if (!IsDebuggerPresent())
         {
+            // Put the UI in a thread. Running a message loop
+            // at arbitary places in the user's code is a bad
+            // idea.
             MessageBoxA(
                 NULL,
                 "WriteWatch detected an invalid address!",
                 "WriteWatch",
                 MB_OK | MB_ICONERROR
             );
-        }
+        }*/
         
         CodeGen g((uint8_t*)pTrampoline);
         // Add a vector to jump back to user code.
@@ -262,7 +269,7 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
 
         return EXCEPTION_CONTINUE_EXECUTION;
     }
-        
+       
     PVOID pPool = (PVOID)((char*)pTrampoline + TrampolineSize - 1);
 
     CodeGen g((uint8_t*)pTrampoline);
@@ -303,6 +310,11 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     // pNext is in the source. Translate to trampoline.
     PVOID pTn = (PVOID)((DWORD_PTR)pCC+(DWORD_PTR)pNext-(DWORD_PTR)(er.ExceptionAddress));
     g.set_next((uint8_t*)pTn);
+
+    // TODO:
+    //  We need to check pAccess after we've re-ran the faulting code and then check the
+    // value that was written. It's the only way I know of to find what was written.
+    // Once we know what was written we can check if it's valid.
 
     // Save volatile regs
     g.push_volatile_regs();

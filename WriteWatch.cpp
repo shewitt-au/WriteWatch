@@ -17,8 +17,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     DWORDLONG v = *(DWORDLONG*)p;
 
-    *(DWORDLONG*)p = 1;
+    int ok;
+    //*(DWORDLONG*)p = (DWORDLONG)&ok;
     *(DWORDLONG*)p = 2;
+    DWORDLONG val = *(DWORDLONG*)p;
     *(DWORDLONG*)p = 3;
 
     *(DWORDLONG*)0 = 4;
