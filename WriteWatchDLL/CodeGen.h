@@ -69,9 +69,9 @@ public:
 		byte((uint8_t)0);
 	}
 
-	void label(int label, uint8_t* pAddress)
+	void label(int label)
 	{
-		m_labels.add_label(label, pAddress);
+		m_labels.add_label(label, m_ip);
 	}
 
 	void patch()
@@ -97,12 +97,15 @@ public:
 	inline void call_indirect(ULONG_PTR pLoc);
 	inline void param1(DWORD64 param);
 	inline void param2(DWORD64 param);
-	inline void param2_rel_addr(DWORD64 param);
+	inline void param2_rel_addr(ULONG_PTR param);
 	inline void param3(DWORD param);
 	inline void param4(DWORD64 param);
 	inline void jmp_indirect(ULONG_PTR pLoc);
 	inline void breakpoint();
 	inline ULONG_PTR variable(size_t sz);
+	inline void test_eax_eax();
+	inline void jz(int label);
+	inline void jnz(int label);
 
 private:
 	uint8_t* m_ip;
@@ -234,4 +237,25 @@ ULONG_PTR CodeGen::variable(size_t sz)
 	return (ULONG_PTR)old;
 }
 
-// cmp dword [rip + 0], 0x12345678; 81 3D 00 00 00 00 78 56 34 12
+void CodeGen::test_eax_eax()
+{
+	// test eax, eax; 85 C0
+	byte(0x85);
+	byte(0xc0);
+}
+
+void CodeGen::jz(int label)
+{
+	// jz; 74 xx
+	m_labels.add_branch(label, m_ip);
+	byte(0x74);
+	byte(0x00);
+}
+
+void CodeGen::jnz(int label)
+{
+	// jz; 75 xx
+	m_labels.add_branch(label, m_ip);
+	byte(0x75);
+	byte(0x00);
+}

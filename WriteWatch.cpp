@@ -15,15 +15,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     PVOID p = AllocWatched(10);
     //PVOID p = (PVOID)(new char[1000]);
 
-    DWORDLONG v = *(DWORDLONG*)p;
+    //DWORDLONG v = *(DWORDLONG*)p;
 
     int ok;
-    //*(DWORDLONG*)p = (DWORDLONG)&ok;
-    *(DWORDLONG*)p = 2;
-    DWORDLONG val = *(DWORDLONG*)p;
-    *(DWORDLONG*)p = 3;
+    *(DWORDLONG*)p = (DWORDLONG)&ok;
+    //*(DWORDLONG*)p = 2;
+    //DWORDLONG val = *(DWORDLONG*)p;
+    //*(DWORDLONG*)p = 3;
 
-    *(DWORDLONG*)0 = 4;
+    //*(DWORDLONG*)0 = 4;
 
     MessageBoxA(NULL, "Here", NULL, MB_OK);
 

@@ -216,6 +216,37 @@ EXPORTED_FN void __stdcall FreeWatched(PVOID pMem)
     g_memory.Free(pMem);
 }
 
+void MakeWritable(LPVOID lpAddr, DWORD *pOld)
+{
+    VirtualProtect(
+        (LPVOID)((UINT_PTR)lpAddr & g_PageMask),
+        g_PageSize,
+        PAGE_READWRITE,
+        pOld
+        );
+}
+
+bool RestoreAndCheck(LPVOID lpAddr, DWORD* pOld)
+{
+    DWORD old;
+    VirtualProtect(
+        (LPVOID)((UINT_PTR)lpAddr & g_PageMask),
+        g_PageSize,
+        *pOld,
+        &old
+    );
+
+    MEMORY_BASIC_INFORMATION mbi;
+    SIZE_T st = VirtualQuery(
+        (LPVOID)((UINT_PTR)*(void**)lpAddr & g_PageMask),
+        &mbi,
+        sizeof(mbi)
+        );
+
+     return mbi.State == MEM_COMMIT &&
+        (mbi.Protect & (PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_READONLY | PAGE_READWRITE));
+}
+
 static LONG WINAPI
 VectoredHandler(struct _EXCEPTION_POINTERS* ep)
 {
@@ -239,65 +270,30 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     //
 
     PVOID pTrampoline = TlsGetValue(g_TlsSlot);
-
-    // BUG: This will not work!!!
-    // We need the value written, not the address written to.
-    /*MEMORY_BASIC_INFORMATION mbi;
-    SIZE_T qr = VirtualQuery(
-                    (LPCVOID)((UINT_PTR)pAccess&g_PageMask),
-                    &mbi,
-                    sizeof(mbi)
-                    );*/
-   
-    /*if (qr && mbi.State != MEM_COMMIT)
-    {
-        CodeGen g((uint8_t*)pTrampoline);
-        // Add a vector to jump back to user code.
-        g.value((DWORD64)0);
-        auto resume = g.get_prev();
-        *(DWORD64*)resume = (DWORD64)(er.ExceptionAddress);
-        auto pEntryPoint = g.get_next();
-        g.breakpoint();
-        // jmp to resume user code.
-        g.jmp_indirect((ULONG_PTR)resume);
-  
-        ep->ContextRecord->Rip = (DWORD64)pEntryPoint;
-
-        return EXCEPTION_CONTINUE_EXECUTION;
-    }*/
-       
     PVOID pPool = (PVOID)((char*)pTrampoline + TrampolineSize - 1);
 
     CodeGen g((uint8_t*)pTrampoline);
 
-    /*g.jne(1);
-    g.label(1, (uint8_t*)pTrampoline);
-    g.patch();*/
-
     // Add a vector to jump back to user code.
     auto resume = g.value((DWORD64)0);
 
-    // Add vector to VirtualProtect
-    auto pp = g.pointer((ULONG_PTR)VirtualProtect);
-    // Add place for lpflOldProtect from VirtualProtect
-    auto old = g.value((DWORD)0);
+    // Add vector to MakeWritable
+    auto mw = g.pointer((ULONG_PTR)MakeWritable);
+    // Space for a DWORD (old memory protection) .
+    auto oldprotect = g.variable(sizeof(DWORD));
 
-    // Add vector to VirtualQuery
-    auto vq = g.pointer((ULONG_PTR)VirtualQuery);
-    // Space for MEMORY_BASIC_INFORMATION.
-    auto mbi = g.variable(sizeof(MEMORY_BASIC_INFORMATION));
+    // Add vector to RestoreAndCheck
+    auto rc = g.pointer((ULONG_PTR)RestoreAndCheck);
 
     auto pEntryPoint = g.get_next();
 
     // Save volatile regs
     g.push_volatile_regs();
 
-    // Make the page writable
-    g.param1((UINT_PTR)pAccess & g_PageMask);
-    g.param2(g_PageSize);
-    g.param3(PAGE_READWRITE);
-    g.param4((DWORD64)old);
-    g.call_indirect(pp);
+    // Call MakeWritable
+    g.param1((UINT_PTR)pAccess);
+    g.param2((UINT_PTR)oldprotect);
+    g.call_indirect(mw);
 
     // Restore volatile regs
     g.pop_volatile_regs();
@@ -315,36 +311,31 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     PVOID pTn = (PVOID)((DWORD_PTR)pCC+(DWORD_PTR)pNext-(DWORD_PTR)(er.ExceptionAddress));
     g.set_next((uint8_t*)pTn);
 
-    // TODO:
-    //  We need to check pAccess after we've re-ran the faulting code and then check the
-    // value that was written. It's the only way I know of to find what was written.
-    // Once we know what was written we can check if it's valid.
-    // The call we need (work in progress).
-    /*MEMORY_BASIC_INFORMATION mbi;
-   SIZE_T st = VirtualQuery((LPCVOID)0x1111'2222'3333'4444, &mbi, sizeof(mbi));*/
-    g.param1((DWORD64)0x1111'2222'3333'4444);
-    g.param2_rel_addr((ULONG_PTR)mbi);
-    g.param3((DWORD)sizeof(MEMORY_BASIC_INFORMATION));
-    g.call_indirect(vq);
+    // Populate return to user code vector.
+    *(DWORD64*)resume = (DWORD64)pNext;
 
     // Save volatile regs
     g.push_volatile_regs();
 
-    // Populate return to user code vector.
-    *(DWORD64*)resume = (DWORD64)pNext;
+    // Call RestoreAndCheck
+    g.param1((UINT_PTR)pAccess);
+    g.param2((UINT_PTR)oldprotect);
+    g.call_indirect(rc);
 
-    // Make the page read-only again
-    g.param1((UINT_PTR)pAccess & g_PageMask);
-    g.param2(g_PageSize);
-    g.param3(PAGE_READONLY);
-    g.param4((DWORD64)old);
-    g.call_indirect(pp);
+    g.test_eax_eax();
+    g.jnz(1);
 
-    // Restore volatile regs
+    // 0 - Bad pointer
     g.pop_volatile_regs();
-
-    // jmp to resume user code.
+    g.breakpoint();
     g.jmp_indirect((ULONG_PTR)resume);
+
+    // 1 - Good pointer
+    g.label(1);
+    g.pop_volatile_regs();
+    g.jmp_indirect((ULONG_PTR)resume);
+
+    g.patch();
     
     ep->ContextRecord->Rip = (DWORD64)pEntryPoint;
 
