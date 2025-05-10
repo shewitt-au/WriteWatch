@@ -119,6 +119,15 @@ MemoryAllocator g_memory;
 
 void InitDLL()
 {
+    // REMOVE THIS: Just here to find code byte sequences.
+    /*MEMORY_BASIC_INFORMATION mbi;
+    SIZE_T st = VirtualQuery((LPCVOID)0x1111'2222'3333'4444, &mbi, sizeof(mbi));
+    if (mbi.State != MEM_COMMIT ||
+        !(mbi.Protect & (PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_READONLY | PAGE_READWRITE)))
+    {
+        DebugBreak();
+    }*/
+
     SYSTEM_INFO si;
     GetSystemInfo(&si);
     g_PageSize = si.dwPageSize;
@@ -233,28 +242,15 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
 
     // BUG: This will not work!!!
     // We need the value written, not the address written to.
-    MEMORY_BASIC_INFORMATION mbi;
+    /*MEMORY_BASIC_INFORMATION mbi;
     SIZE_T qr = VirtualQuery(
                     (LPCVOID)((UINT_PTR)pAccess&g_PageMask),
                     &mbi,
                     sizeof(mbi)
-                    );
+                    );*/
    
-    if (qr && mbi.State!=MEM_COMMIT)
+    /*if (qr && mbi.State != MEM_COMMIT)
     {
-        /*if (!IsDebuggerPresent())
-        {
-            // Put the UI in a thread. Running a message loop
-            // at arbitary places in the user's code is a bad
-            // idea.
-            MessageBoxA(
-                NULL,
-                "WriteWatch detected an invalid address!",
-                "WriteWatch",
-                MB_OK | MB_ICONERROR
-            );
-        }*/
-        
         CodeGen g((uint8_t*)pTrampoline);
         // Add a vector to jump back to user code.
         g.value((DWORD64)0);
@@ -268,20 +264,28 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
         ep->ContextRecord->Rip = (DWORD64)pEntryPoint;
 
         return EXCEPTION_CONTINUE_EXECUTION;
-    }
+    }*/
        
     PVOID pPool = (PVOID)((char*)pTrampoline + TrampolineSize - 1);
 
     CodeGen g((uint8_t*)pTrampoline);
 
+    /*g.jne(1);
+    g.label(1, (uint8_t*)pTrampoline);
+    g.patch();*/
+
     // Add a vector to jump back to user code.
-    g.value((DWORD64)0);
-    auto resume = g.get_prev();;
+    auto resume = g.value((DWORD64)0);
+
     // Add vector to VirtualProtect
     auto pp = g.pointer((ULONG_PTR)VirtualProtect);
     // Add place for lpflOldProtect from VirtualProtect
-    g.value((DWORD)0);
-    auto old = g.get_prev();
+    auto old = g.value((DWORD)0);
+
+    // Add vector to VirtualQuery
+    auto vq = g.pointer((ULONG_PTR)VirtualQuery);
+    // Space for MEMORY_BASIC_INFORMATION.
+    auto mbi = g.variable(sizeof(MEMORY_BASIC_INFORMATION));
 
     auto pEntryPoint = g.get_next();
 
@@ -316,21 +320,12 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     // value that was written. It's the only way I know of to find what was written.
     // Once we know what was written we can check if it's valid.
     // The call we need (work in progress).
-    /*
-    MEMORY_BASIC_INFORMATION mbi;
-    SIZE_T st = VirtualQuery(*pAccess, &mbi, sizeof(mbi))
-                  [in, optional] LPCVOID                   lpAddress,
-                  [out]          PMEMORY_BASIC_INFORMATION lpBuffer,
-                  [in]           SIZE_T                    dwLength
-                  );
-    if (mbi.State!=MEM_COMMIT ||
-        mbi.Protect&PAGE_NOACCESS ||
-        !mbi.Protect&(PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_READONLY|PAGE_READWRITE)
-    {
-        DebugBreak();
-    }
-    */
-
+    /*MEMORY_BASIC_INFORMATION mbi;
+   SIZE_T st = VirtualQuery((LPCVOID)0x1111'2222'3333'4444, &mbi, sizeof(mbi));*/
+    g.param1((DWORD64)0x1111'2222'3333'4444);
+    g.param2_rel_addr((ULONG_PTR)mbi);
+    g.param3((DWORD)sizeof(MEMORY_BASIC_INFORMATION));
+    g.call_indirect(vq);
 
     // Save volatile regs
     g.push_volatile_regs();
