@@ -336,6 +336,11 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     g.jmp_indirect((ULONG_PTR)resume);
 
     g.patch();
+    BOOL ok = FlushInstructionCache(
+                GetCurrentProcess(),
+                pTrampoline, 
+                g.get_next() - (uint8_t*)pTrampoline
+                );
     
     ep->ContextRecord->Rip = (DWORD64)pEntryPoint;
 
