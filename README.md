@@ -7,5 +7,5 @@ to detect invalid pointers written to memory it allocates. It's used by
 down a particuar bug. It didn't find the bug, but ruled out external memory
 corruption. It uses vectored exception handling (back in the day I would have
 done something like this by detouring [https://github.com/microsoft/Detours] 
-KiUserExceptionDispatcher) and dynamic code generation. It used the Detours
+KiUserExceptionDispatcher) and dynamic code generation. It uses the Detours
 library to copy the faulting instruction into the dynamically generated code.
