@@ -259,7 +259,7 @@ VectoredHandler(struct _EXCEPTION_POINTERS* ep)
     // Access violation on a write
     //
 
-    // Is it one of our's?
+    // Is it one of ours?
     PVOID pAccess = (PVOID)ep->ExceptionRecord->ExceptionInformation[1];
     if (!g_memory.Check(pAccess, sizeof(DWORD_PTR)))
     {
